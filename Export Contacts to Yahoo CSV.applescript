@@ -1,8 +1,8 @@
 (*
 
-   Export Contacts to Yahoo CSV
-	by Aurelio Marinho Jargas (http://aurelio.net)
-	v1.0 - March 9, 2005
+   Export Contacts to Yahoo CSV (http://aurelio.net/bin/as)
+	by Aurelio Marinho Jargas
+	v1.1 - March 12, 2005
    
    Apple Script to export the Address Book contacts to the Yahoo! CSV format.
    Then it can be uploaded to the Yahoo Web-based Address Book.
@@ -24,6 +24,11 @@ Usage:
    Just run this script and it will dump the "Yahoo-AB.csv" file to your Desktop.
 
 
+History:
+   v1.0 March  9, 2005 - First public release
+   v1.1 March 12, 2005 - MaxContacts set to 999, MaxContacts sanity check, AvailableFilePath()
+   
+   
 Note: It is my real first Apple Script. Improvements are VERY welcome.
 
 *)
@@ -43,7 +48,7 @@ set YahooDistributionList to "Unfiled"
 set YahooMainPhone to "home"
 
 -- Maximum number of contacts to export
-set MaxContacts to 1
+set MaxContacts to 999
 
 -- List with all the Yahoo CSV fields
 -- If your language is not listed here, check the first line of your Yahoo generated CSV file.
@@ -58,6 +63,7 @@ set YahooFields to {"First", "Middle", "Last", "Nickname", "Email", "Category", 
 -- ##################################### END OF USER CONFIG
 
 set ScriptName to "Export Contacts to Yahoo CSV"
+set DefaultCsvFileName to "Yahoo-AB.csv"
 set ContactCount to 0
 set AllLines to {}
 
@@ -72,9 +78,7 @@ end ListToCsvLine
 
 -- Convert from date property to Yahoo "MM/DD/YYYY" format
 on FormatDate(theDate)
-	if theDate is missing value then
-		return ""
-	end if
+	if theDate is missing value then return ""
 	set d to day of theDate as text
 	set y to year of theDate as text
 	set m to month of theDate as integer
@@ -86,9 +90,8 @@ end FormatDate
 on getGroup(Contact)
 	tell application "Address Book"
 		repeat with theGroup in groups
-			if id of Contact is in id of every person of theGroup then
+			if id of Contact is in id of every person of theGroup then Â
 				return the name of theGroup
-			end if
 		end repeat
 	end tell
 	return "" -- not found
@@ -106,14 +109,12 @@ on AddMe(info)
 	end try
 	
 	-- Map missing to empty
-	if info is missing value then
+	if info is missing value then Â
 		set info to ""
-	end if
 	
 	-- From here, we only know about text
-	if class of info is not text then
+	if class of info is not text then Â
 		set info to info as text
-	end if
 	
 	-- Every embedded " turns to "" on Yahoo CSV
 	if info contains "\"" then
@@ -126,29 +127,78 @@ on AddMe(info)
 	copy info to the end of full_line
 end AddMe
 
--- Copied from Apple docs
-on write_to_file(this_data, target_file, append_data)
+-- Gives an alternate file name if the given one already exists
+on AvailableFilePath(FilePath, DefaultFileName)
+	if DefaultFileName is "" then set DefaultFileName to "a"
+	
+	tell application "Finder"
+		-- If user defined a folder, set the default filename inside it
+		if folder FilePath exists then Â
+			set FilePath to (folder FilePath as text) & DefaultFileName
+		
+		if not (file FilePath exists) then
+			-- File not found, the name is vacant and we're done			
+			return FilePath
+		else
+			-- Name unvailable :(
+			set DirName to container of file FilePath as text
+			set BaseName to name of file FilePath
+			set ExtName to name extension of file FilePath
+		end if
+	end tell
+	
+	-- Get basename without extension
+	if ExtName is not "" then
+		set AppleScript's text item delimiters to "."
+		set BaseName to text items 1 thru -2 of BaseName as text
+		set AppleScript's text item delimiters to ""
+	end if
+	
+	-- Add the count at the end (-1, -2, ...)
+	repeat with i from 1 to 99
+		-- Compose the new name (with count and extension - if any)
+		set NewBaseName to BaseName & "-" & i as text
+		if ExtName is not "" then Â
+			set NewBaseName to NewBaseName & "." & ExtName
+		-- If it's free, we've found the new name
+		tell application "Finder" to Â
+			if not ((file NewBaseName exists) or (folder NewBaseName exists)) then exit repeat
+	end repeat
+	
+	return DirName & NewBaseName
+end AvailableFilePath
+
+
+on WriteFile(FileData, FilePath)
 	try
-		set the target_file to the target_file as text
-		set the open_target_file to Â
-			open for access file target_file with write permission
-		if append_data is false then Â
-			set eof of the open_target_file to 0
-		write this_data as Unicode text to the open_target_file starting at eof
-		close access the open_target_file
+		set FilePath to FilePath as text
+		set fd to open for access file FilePath with write permission
+		write FileData as Unicode text to the fd starting at 0
+		close access the fd
 		return true
 	on error
 		try
-			close access file target_file
+			close access file FilePath
 		end try
 		return false
 	end try
-end write_to_file
+end WriteFile
 
 -- ###################################### Processing begins here
 
 if not Vanilla then
-	display dialog (ScriptName & return & return & "I will scan your Address Book and dump all information to the Yahoo CSV format. It will take just a few seconds.") buttons {"OK"}
+	display dialog (ScriptName & return & return & Â
+		"I will scan your Address Book and dump all information to the Yahoo CSV format. " & Â
+		"It will take just a few seconds.")
+	
+	-- Sanity check
+	tell application "Address Book" to set TotalContacts to count person
+	if MaxContacts < TotalContacts then
+		display dialog ScriptName & return & return & Â
+			"Warning: You have " & TotalContacts & " exportable contacts, " & Â
+			"but the current maximum is set to " & MaxContacts & "." & return & return & Â
+			"If you want to export all contacts, set the \"MaxContacts\" configuration to a higher value."
+	end if
 end if
 
 -- Add the field names at the first line
@@ -158,9 +208,8 @@ copy ListToCsvLine(YahooFields) to the end of AllLines
 tell application "Address Book"
 	repeat with Contact in every person
 		
-		if ContactCount is MaxContacts then
+		if ContactCount is MaxContacts then Â
 			exit repeat
-		end if
 		
 		set ContactCount to ContactCount + 1
 		set full_line to {} -- reset the data holder
@@ -295,16 +344,32 @@ tell application "Address Book"
 	end repeat
 end tell
 
--- Write the CSV file to the Desktop
-write_to_file(AllLines as text, CsvFile, true)
+-- Make sure we will not overwrite any file
+set CsvFile to AvailableFilePath(CsvFile, DefaultCsvFileName)
 
--- XXX: how to avoid these chars from being inserted?
--- Remove strange chars (^@ ^M) that are inserted on the CSV file
-set CsvUnixFile to POSIX path of CsvFile
-set TmpFile to CsvUnixFile & ".tmp"
-do shell script "cat " & CsvUnixFile & " | tr -d '\\000' | tr '\\015' '\\n' > " & TmpFile
-do shell script "mv " & TmpFile & " " & CsvUnixFile
+-- Write the CSV file to the Desktop
+set SaveOk to WriteFile(AllLines as text, CsvFile)
+
+if not SaveOk then
+	set FinalMessage to ScriptName & return & return & Â
+		"ERROR when trying to save the results to the following file:" & Â
+		return & return & tab & tab & (CsvFile as text)
+	
+else
+	set FinalMessage to ScriptName & return & return & Â
+		(ContactCount as text) & Â
+		" contacts were exported from your Address Book to the following file:" & Â
+		return & return & tab & tab & (CsvFile as text)
+	
+	-- XXX: how to avoid these chars from being inserted?
+	
+	-- Remove strange chars (^@ ^M) that are inserted on the CSV file
+	set CsvUnixFile to POSIX path of CsvFile
+	set TmpFile to AvailableFilePath(CsvUnixFile & ".tmp", "")
+	do shell script "cat " & CsvUnixFile & " | tr -d '\\000' | tr '\\015' '\\n' > " & TmpFile
+	do shell script "mv " & TmpFile & " " & CsvUnixFile
+end if
 
 if not Vanilla then
-	display dialog ((ScriptName & return & return & ContactCount as text) & " contacts were exported from your Address Book to the following file:" & return & return & tab & tab & CsvFile as text) buttons {"OK"}
+	display dialog FinalMessage buttons {"OK"}
 end if
