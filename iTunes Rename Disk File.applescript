@@ -1,15 +1,16 @@
 (*
-	iTunes Rename Disk File (http://aurelio.net/bin/as/)
-	by Aurelio Marinho Jargas
-	10 May, 2005 - version 1.0
+	iTunes Rename Disk File
 	
+ 	Made by Aurelio Jargas
+	http://aurelio.net/soft
+
 	This script will rename the disk files of the selected songs on iTunes,
 	based on the song info such as Artist or Album name. The user can
 	choose a default filename format or make its own. All the renames
 	attempted are logged for user inspection. It also can remove blank
 	spaces and symbols from the filename.
 
-	Details: 
+Details: 
 	- The file extension is kept unchanged.
 	- The file is not moved to another folder, just renamed.
 	- The default strings for empty values are configurable.
@@ -22,14 +23,30 @@
 	- The user-defined format can include:
 		Song name, Track number, Artist name, Album name and Year
 
-	License: Open Source, Public Domain, "as is", etc.
-	Install: Save this script under the "Library/iTunes/Scripts" folder.
-	
-	Inspired by Lee S. Edwards rename script.
+Install:	
+	Save this file on your "Library/Scripts/Applications/iTunes/" folder.
+
+	For detailed information on installation, read
+	http://aurelio.net/soft/applescript-install.html
+
+License:
+	Open Source, "as is", no warranty.
+
+History:
+	May 2005 version 1
+		- Debut release
+	Mar 2008 version 2
+		- Fixes for Mac OS X Leopard
+		- Now the user custom format is remembered for the next time 
+
+
+	Inspired by Lee S. Edwards script "Change Disk Name to Song Name".
 	Similar script: http://applescript.plaidcow.net/iTunes/RenameFiles/
 
-	This script is useful for you? Consider making a PayPal donation to verde@aurelio.net.
 	
+Get more scripts for free:
+	http://aurelio.net/soft
+		
 *)
 
 -------------------------------------------------- USER CONFIG HERE
@@ -52,12 +69,18 @@ set MissingFieldValues to {SongName:"Unnamed Song", ArtistName:"Unknown Artist",
 -------------------------------------------------- END OF USER CONFIG
 
 
-set ScriptName to "iTunes Rename Disk File"
-set scriptVersion to "1.0"
+set myName to "iTunes Rename Disk File"
+set myVersion to "2"
+
+set myUrl to "http://aurelio.net/soft/"
+set donateUrl to "http://aurelio.net/soft/donate.html"
+
+property runCount : 0
+property lastPattern : "A - B - 9 - S"
 
 set LogLines to {}
 set UseBlanks to true
-set DialogTitle to ScriptName & " v" & scriptVersion
+set DialogTitle to myName & " v" & myVersion
 set CustomFormatName to "<custom format>"
 
 -- (S)ong name, (9) Track number, (A)rtist name, Al(B)um name, (Y)ear
@@ -66,8 +89,14 @@ set DefaultFileMasks to {"S", "9 - S", "A - S", "B - 9 - S", "A - B - 9 - S", "A
 -- Default names for the song fields (used in dialogs only)
 set DefaultFieldNames to {TrackNumber:"01", SongName:"Song Name", ArtistName:"Artist Name", AlbumName:"Album Name", SongYear:"Year"}
 
-
 tell application "iTunes"
+	
+	if runCount is 0 then
+		display dialog "Thank you for downloading my " & myName & " script!" & return & return & "You can visit my website and get more free AppleScripts to use with iTunes, iPhoto and Address Book!" buttons {"Later", "OK"} default button 2 with icon 1
+		if button returned of result as text is "OK" then my openUrl(myUrl)
+	end if
+	set runCount to runCount + 1
+	
 	-- Get the selected tracks as a list of references
 	set theTracks to the selection of front window
 	if theTracks is {} then error "No tracks are selected in the iTunes front window."
@@ -90,8 +119,11 @@ tell application "iTunes"
 				"    A   " & tab & "Artist name" & return & Â
 				"    B   " & tab & "Album name" & return & Â
 				"    Y   " & tab & "Year" & return & return) Â
-				default answer "A - B - 9 - S"
+				default answer lastPattern
 			set FileMask to text returned of result as string
+			
+			-- Save the used pattern
+			set lastPattern to FileMask
 		end repeat
 		set FileMaskExpanded to my expandFileMask(FileMask, {})
 	else
@@ -232,14 +264,23 @@ tell application "iTunes"
 		end tell
 	end if
 	
+	if runCount mod 10 is 0 then
+		display dialog "Thank you for using my " & myName & " script for so long: " & runCount & " times." & return & return & "How about giving me a little hand to improve this script?" & return & return & "Donate 3 or 5 dollars to make an independent programmer very happy today!" buttons {"Later", "OK"} default button 2 with icon 1
+		if button returned of result as text is "OK" then my openUrl(donateUrl)
+	end if
+	
 end tell
 
+-- Needed because iTunes has its own "open location" command
+on openUrl(theURL)
+	open location theURL
+end openUrl
 
 -- Expand all the File Mask special tokens to its names
 on expandFileMask(theMask, theData)
 	set theText to ""
 	if theData is {} then set theData to my DefaultFieldNames
-	repeat with char in items of theMask
+	repeat with char in characters of theMask
 		set char to char as text
 		considering case
 			if char is "9" then
@@ -291,7 +332,7 @@ on fixFileName(theName)
 	if ":" is in theName then set theName to my replaceString(theName, ":", "")
 	-- Remove all the symbols
 	if my RemoveSymbols is true then
-		repeat with char in items of my ForbiddenChars
+		repeat with char in characters of my ForbiddenChars
 			if char is in theName then
 				set theName to my replaceString(theName, char, "")
 			end if
