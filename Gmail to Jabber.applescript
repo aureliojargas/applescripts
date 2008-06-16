@@ -1,4 +1,6 @@
 (*
+	Gmail to Jabber
+
 	Made by Aurelio Jargas
 	http://aurelio.net/soft
 
@@ -13,6 +15,18 @@ Install:
 License:
 	Open Source, "as is", no warranty.
 
+History:
+	Jan 2008 version 1
+		- Debut release
+	Jun 2008 version 2
+		- Fix for Mac OS X version 10.5.3: defaultLabel can't be empty
+		- Program version showing at splash screen
+
+Thank you:
+	Walker Traylor
+	SunMin
+	Julian
+
 Get more scripts for free:
 	http://aurelio.net/soft
 
@@ -23,16 +37,17 @@ Get more scripts for free:
 -------------------- USER CONFIG
 
 -- Set here the default label to be used for the added Jabber contacts.
--- Leave empty for the default "other", or fill it with "home" or "work".
+-- Values: other, home, work.
+-- Note: Starting in OS X 10.5.3, it cannot be empty.
 --
-set defaultLabel to ""
+set defaultLabel to "other"
 
 -------------------- End of USER CONFIG
 
 
 
 property runCount : 0
-set myVersion to "1"
+set myVersion to "2"
 set myname to "Gmail to Jabber"
 
 set myUrl to "http://aurelio.net/soft/"
@@ -66,7 +81,7 @@ end byebye
 tell application "Contacts"
 
 	-- Main screen
-	display dialog myname & return & return & introMessage with icon 1 buttons {"Quit", buttonAll, buttonConfirm} default button 3
+	display dialog myname & " (version " & myVersion & ")" & return & return & introMessage with icon 1 buttons {"Quit", buttonAll, buttonConfirm} default button 3
 	set opMode to button returned of result
 	if opMode is "Quit" then return
 
